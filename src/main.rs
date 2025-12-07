@@ -36,7 +36,7 @@ async fn main() {
     let mut total_txs = 0;
 
     while start_block < end_block {
-        let mut current_end = start_block + 100;
+        let mut current_end = start_block + 300;
         if current_end > end_block {
             current_end = end_block;
         }
@@ -59,11 +59,24 @@ async fn main() {
         };
 
         println!("---Logs: {}", logs.len());
+        if logs.len() == 0 {
+            println!("========================");
+            println!("Total batches: {}", total_batches);
+            println!("Total blocks: {}", total_blocks);
+            println!("Total txs: {}", total_txs);
+            println!("Error logs length is equal to zero from block {} to {}", start_block, current_end);
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            continue;
+        }
         for log in logs {
             let block_num = log.block_number.unwrap_or(0);
             let event = ITaikoInbox::BatchProposed::decode_log(&log.inner).unwrap();
 
             if batch_id + 1 != event.data.meta.batchId {
+                println!("========================");
+                println!("Total batches: {}", total_batches);
+                println!("Total blocks: {}", total_blocks);
+                println!("Total txs: {}", total_txs);
                 panic!("Warning: missing batch ID. Previous: {}, current: {}", batch_id, event.data.meta.batchId);
             }
             batch_id = event.data.meta.batchId;
