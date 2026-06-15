@@ -1,3 +1,5 @@
+mod consensus_layer;
+
 use alloy::{
     primitives::{Address, FixedBytes},
     providers::{Provider, ProviderBuilder},
@@ -9,10 +11,108 @@ use std::str::FromStr;
 mod bindings;
 use bindings::taiko_inbox::ITaikoInbox;
 
+use taiko_bindings::{inbox::Inbox::Proposed};
+use taiko_protocol::shasta::manifest::DerivationSourceManifest;
+use taiko_protocol::shasta::BlobCoder;
+
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
+    shasta().await;
+}
 
+async fn shasta() {
+    let rpc = "https://ethereum-hoodi-rpc.publicnode.com";
+    let beacon_rpc = "https://ethereum-hoodi-beacon-api.publicnode.com/";
+    let provider = match ProviderBuilder::new()
+        .connect(rpc).await {
+        Ok(provider) => provider,
+        Err(e) => {
+            panic!(
+                "Failed to create WebSocket provider: {e}"
+            );
+        }
+    };
+
+    //let shasta_inbox= Address::from_str("0x3477f9e8A890C2286C5E62150ad6593EeF4590b9").unwrap();
+    //let start_block = 2_755_667;
+    //let end_block = 2_755_667;
+
+    let shasta_inbox = Address::from_str("0xeF4bB7A442Bd68150A3aa61A6a097B86b91700BF").unwrap();
+    let start_block = 3021518;
+    let end_block = 3021518;
+
+    let filter = Filter::new()
+                .address(shasta_inbox)
+                .event(Proposed::SIGNATURE)
+                .from_block(start_block)
+                .to_block(end_block);
+
+    let logs = match provider.get_logs(
+            &filter
+        ).await {
+            Err(e) => {
+                println!("Error fetching logs from block {} to {}: {}", start_block, end_block, e);
+                return;
+            },
+            Ok(logs) => {logs},
+        };
+
+    println!("---Logs: {}", logs.len());
+    for log in logs {
+        let event = Proposed::decode_log(&log.inner).unwrap();
+
+        println!("Block: {} Proposal ID: {}, proposer: {}", log.block_number.unwrap_or(0), event.data.id, event.data.proposer);
+        event.sources.iter().for_each(|source| {
+            source.isForcedInclusion;
+            println!("Is forced inclusion: {}", source.isForcedInclusion);
+            println!("Blob slice offset: {}, timestamp: {}, blob hashes: {:?}", source.blobSlice.offset, source.blobSlice.timestamp, source.blobSlice.blobHashes);
+        });
+
+        if event.sources[0].blobSlice.blobHashes.len() > 1 {
+            println!("More than 1 blob hash not supported yet");
+            return;
+        }
+
+        let cl = consensus_layer::ConsensusLayer::new(beacon_rpc, std::time::Duration::from_secs(10)).unwrap();
+        let genesis_ts = cl.get_genesis_time().await.unwrap();
+        let slot: u64 = (event.sources[0].blobSlice.timestamp.to::<u64>() - genesis_ts) / 12;
+        let blobs = cl.get_blobs(slot, &event.sources[0].blobSlice.blobHashes).await.unwrap();
+
+        if blobs.len() != 1 {
+            println!("Only one blob supported for slot {}, blobs {}", slot, blobs.len());
+            return;
+        }
+
+        if event.sources[0].blobSlice.offset != 0 {
+            println!("Non-zero blob slice offset not supported yet");
+            return;
+        }
+        
+        
+
+        let blob_bytes = match BlobCoder::decode_blob(&blobs[0]) {
+            Some(data) => data,
+            None => {
+                println!("Error decoding blob");
+                return;
+            }
+        };
+
+        println!("blob_bytes length: {}", blob_bytes.len());
+        
+        let m = DerivationSourceManifest::decompress_and_decode(&blob_bytes, event.sources[0].blobSlice.offset.to::<usize>()).unwrap();
+
+        println!("Total blocks in manifest: {}", m.blocks.len());
+        for (i, block) in m.blocks.iter().enumerate() {
+            println!("Block: {}, timestamp: {}", i, block.timestamp);
+        }
+    }
+
+}
+
+ 
+async fn pacaya() {
     let rpc = "https://ethereum-rpc.publicnode.com";
 
     let provider = match ProviderBuilder::new()
