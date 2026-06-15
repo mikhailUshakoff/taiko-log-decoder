@@ -4,7 +4,6 @@ use alloy::eips::eip4844::Blob;
 use alloy::primitives::B256;
 use alloy::rpc::types::beacon::sidecar::GetBlobsResponse;
 use anyhow::Error;
-use reqwest;
 
 pub struct ConsensusLayer {
     client: reqwest::Client,
