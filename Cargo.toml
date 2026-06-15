@@ -17,3 +17,4 @@ taiko_bindings = { git = "https://github.com/taikoxyz/taiko-mono.git", rev = "66
 taiko_protocol = { git = "https://github.com/taikoxyz/taiko-mono.git", rev = "6640f00e5fad14bd35a31b3cb820c549bded50c8", package = "protocol" }
 anyhow = { version = "1", default-features = false }
 serde_json = { version = "1.0", default-features = false }
+dotenvy = "0.15"
